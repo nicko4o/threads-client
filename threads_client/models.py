@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 MediaType = Literal["TEXT", "IMAGE", "VIDEO", "CAROUSEL"]
 CarouselItemMediaType = Literal["IMAGE", "VIDEO"]
@@ -33,9 +33,24 @@ class ThreadsPost(BaseModel):
     permalink: str | None = None
 
 
+class ThreadsPagingCursors(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    before: str | None = Field(default=None, description="Cursor pointer for preceding page")
+    after: str | None = Field(default=None, description="Cursor pointer for subsequent page")
+
+
+class ThreadsPaging(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    cursors: ThreadsPagingCursors | None = Field(default=None, description="Paging cursors")
+    next: str | None = Field(default=None, description="Graph API endpoint URL for subsequent page")
+    previous: str | None = Field(default=None, description="Graph API endpoint URL for preceding page")
+
+
 class ThreadsPostPage(BaseModel):
     data: list[ThreadsPost] = Field(default_factory=list)
-    paging: dict[str, Any] | None = None
+    paging: ThreadsPaging | None = None
 
 
 class TokenInfo(BaseModel):

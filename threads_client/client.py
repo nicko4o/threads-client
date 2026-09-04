@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import Mapping, Sequence
-from typing import Any, cast
+from types import TracebackType
 
 import httpx
 
@@ -30,7 +30,6 @@ from threads_client.models import (
     CarouselMediaItem,
     ContainerStatus,
     PostCreateResult,
-    ThreadsPost,
     ThreadsPostPage,
     TokenInfo,
 )
@@ -294,7 +293,6 @@ class PostsResource(BaseResource):
         params: QueryParamsMapping = {"fields": "status,error_message", "access_token": self._access_token}
 
         for attempt in range(max_attempts):
-            await asyncio.sleep(delay)
             resp = await self._send_with_retry("GET", url, params=params, max_retries=1)
             data = resp.json()
             status = data.get("status")
@@ -305,6 +303,9 @@ class PostsResource(BaseResource):
                 err_msg = str(data.get("error_message") or "Container processing failed")
                 raise ThreadsMediaProcessingError(f"Container processing failed: {err_msg}")
             logger.info("Container %s status: %s (%s/%s)", container_id, status, attempt + 1, max_attempts)
+
+            if attempt < max_attempts - 1:
+                await asyncio.sleep(delay)
 
         raise ThreadsTimeoutError(f"Container {container_id} did not finish processing in time.")
 
@@ -361,10 +362,7 @@ class PostsResource(BaseResource):
 
         resp = await self._send_with_retry("GET", url, params=params_dict)
         data = resp.json()
-        raw_items = cast(list[dict[str, object]], data.get("data", []))
-        posts = [ThreadsPost.model_validate(item) for item in raw_items]
-        paging = cast(dict[str, object] | None, data.get("paging"))
-        return ThreadsPostPage(data=posts, paging=paging)
+        return ThreadsPostPage.model_validate(data)
 
     async def find_by_signature(self, signature: str, user_id: str | None = None) -> str | None:
         page = await self.list(user_id=user_id, limit=25)
@@ -417,7 +415,7 @@ class ThreadsClient:
         self,
         _exc_type: type[BaseException] | None,
         _exc_val: BaseException | None,
-        _exc_tb: Any,
+        _exc_tb: TracebackType | None,
     ) -> None:
         await self.close()
 
