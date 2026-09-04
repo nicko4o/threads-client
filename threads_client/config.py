@@ -17,6 +17,10 @@ ERROR_SUBCODE_MEDIA_NOT_READY: Final[int] = 4279009
 MEDIA_NOT_READY_BACKOFF_FACTOR_SECONDS: Final[int] = 3
 MAX_TOPIC_TAG_LENGTH: Final[int] = 50
 
+VALID_CONTAINER_STATUS_STATES: Final[frozenset[str]] = frozenset(
+    {"EXPIRED", "ERROR", "FINISHED", "IN_PROGRESS", "PUBLISHED"}
+)
+
 TRANSIENT_ERROR_CODES: Final[tuple[int, ...]] = (1, 2, 4, 17, 341)
 
 SENSITIVE_PARAM_KEYS: Final[frozenset[str]] = frozenset(

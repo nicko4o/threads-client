@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- Atomic container status probe `PostsResource.get_container_status(container_id)` returning `ContainerStatus` for non-blocking inspection without polling delays.
+- Domain constant `VALID_CONTAINER_STATUS_STATES` validating Meta container status values (`EXPIRED`, `ERROR`, `FINISHED`, `IN_PROGRESS`, `PUBLISHED`).
+
+### Changed
+- Refactored `PostsResource.poll_container_status` to orchestrate status polling on top of `get_container_status`.
+
 ## [0.1.0] - 2026-09-04
 
 ### Added
