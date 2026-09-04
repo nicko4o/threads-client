@@ -55,37 +55,13 @@ class ThreadsAPIError(ThreadsError):
         raw_subcode = err_dict.get("error_subcode")
         subcode = int(raw_subcode) if isinstance(raw_subcode, (int, str)) and str(raw_subcode).isdigit() else None
         error_type = str(err_dict["type"]) if "type" in err_dict else None
+
         is_transient = _is_transient_error(status_code, code, err_dict)
+        error_cls, forced_transient = _resolve_error_class(status_code, code, subcode)
+        if forced_transient is not None:
+            is_transient = forced_transient
 
-        if subcode == ERROR_SUBCODE_MEDIA_NOT_READY:
-            return ThreadsMediaProcessingError(
-                message=message,
-                status_code=status_code,
-                code=code,
-                subcode=subcode,
-                error_type=error_type,
-                is_transient=False,
-            )
-        if status_code == 401 or code == 190:
-            return ThreadsAuthenticationError(
-                message=message,
-                status_code=status_code,
-                code=code,
-                subcode=subcode,
-                error_type=error_type,
-                is_transient=is_transient,
-            )
-        if status_code == 429 or code in (4, 17, 341):
-            return ThreadsRateLimitError(
-                message=message,
-                status_code=status_code,
-                code=code,
-                subcode=subcode,
-                error_type=error_type,
-                is_transient=True,
-            )
-
-        return cls(
+        return error_cls(
             message=message,
             status_code=status_code,
             code=code,
@@ -107,6 +83,20 @@ class ThreadsMediaProcessingError(ThreadsAPIError):
     """Raised when container processing fails or media format is unsupported."""
 
 
+def _resolve_error_class(
+    status_code: int,
+    code: int | None,
+    subcode: int | None,
+) -> tuple[type[ThreadsAPIError], bool | None]:
+    if subcode == ERROR_SUBCODE_MEDIA_NOT_READY:
+        return ThreadsMediaProcessingError, False
+    if status_code == 401 or code == 190:
+        return ThreadsAuthenticationError, None
+    if status_code == 429 or code in (4, 17, 341):
+        return ThreadsRateLimitError, True
+    return ThreadsAPIError, None
+
+
 def _extract_error_dict(resp: httpx.Response) -> dict[str, object]:
     try:
         data = resp.json()
@@ -114,7 +104,7 @@ def _extract_error_dict(resp: httpx.Response) -> dict[str, object]:
             return data["error"]
         if isinstance(data, dict):
             return data
-    except (ValueError, KeyError, AttributeError):
+    except ValueError:
         pass
     return {}
 

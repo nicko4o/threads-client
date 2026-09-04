@@ -14,7 +14,7 @@ from threads_client.exceptions import (
     ThreadsTimeoutError,
     ThreadsValidationError,
 )
-from threads_client.models import CarouselMediaItem
+from threads_client.models import CarouselMediaItem, ThreadsPaging
 
 
 def _req_body(call_index: int = 0) -> str:
@@ -266,3 +266,61 @@ async def test_log_masking_does_not_leak_access_token(
             await client.posts.create(text="Masking test")
 
     assert access_token not in caplog.text
+
+
+@respx.mock
+async def test_list_posts_typed_paging(base_url: str, user_id: str, access_token: str) -> None:
+    respx.get(f"{base_url}/{user_id}/threads").respond(
+        200,
+        json={
+            "data": [
+                {"id": "post_1", "text": "Post 1"},
+            ],
+            "paging": {
+                "cursors": {"before": "cursor_prev", "after": "cursor_next"},
+                "next": "https://graph.threads.net/v1.0/me/threads?after=cursor_next",
+                "custom_meta_field": "future_field_val",
+            },
+        },
+    )
+
+    async with ThreadsClient(user_id=user_id, access_token=access_token) as client:
+        page = await client.posts.list()
+        assert isinstance(page.paging, ThreadsPaging)
+        assert page.paging.cursors is not None
+        assert page.paging.cursors.before == "cursor_prev"
+        assert page.paging.cursors.after == "cursor_next"
+        assert page.paging.next == "https://graph.threads.net/v1.0/me/threads?after=cursor_next"
+        assert page.paging.previous is None
+        assert getattr(page.paging, "custom_meta_field", None) == "future_field_val"
+
+
+@respx.mock
+async def test_polling_immediate_finished_no_sleep(
+    base_url: str, user_id: str, access_token: str, mocker: pytest_mock.MockerFixture
+) -> None:
+    mock_sleep = mocker.patch("asyncio.sleep")
+    respx.get(f"{base_url}/cnt_fast_1").respond(200, json={"status": "FINISHED"})
+
+    async with ThreadsClient(user_id=user_id, access_token=access_token) as client:
+        status = await client.posts.poll_container_status("cnt_fast_1")
+        assert status.status == "FINISHED"
+
+    mock_sleep.assert_not_called()
+
+
+@respx.mock
+async def test_polling_retry_sleeps_until_finished(
+    base_url: str, user_id: str, access_token: str, mocker: pytest_mock.MockerFixture
+) -> None:
+    mock_sleep = mocker.patch("asyncio.sleep")
+    respx.get(f"{base_url}/cnt_pending_1").side_effect = [
+        httpx.Response(200, json={"status": "IN_PROGRESS"}),
+        httpx.Response(200, json={"status": "FINISHED"}),
+    ]
+
+    async with ThreadsClient(user_id=user_id, access_token=access_token) as client:
+        status = await client.posts.poll_container_status("cnt_pending_1")
+        assert status.status == "FINISHED"
+
+    assert mock_sleep.call_count == 1
