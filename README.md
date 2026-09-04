@@ -140,14 +140,16 @@ except ThreadsAPIError as err:
 
 ```bash
 # Run test suite
-uv run pytest -v
+make test
 
-# Run lint and format check
-uv run ruff check src tests
-uv run ruff format --check src tests
+# Run lint, format, type, and dead code checks
+make lint
 
-# Run strict type checking
-uv run mypy src tests
+# Or run individual tools via uv
+uv run pytest tests/ -v
+uv run ruff check threads_client tests
+uv run mypy threads_client tests
+uv run vulture threads_client tests
 ```
 
 ## License
