@@ -16,7 +16,7 @@ class CarouselMediaItem(BaseModel):
 
 class ContainerStatus(BaseModel):
     id: str
-    status: str
+    status: ContainerStatusState
     error_message: str | None = None
 
 

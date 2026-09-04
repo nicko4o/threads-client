@@ -236,23 +236,53 @@ async def test_list_posts(base_url: str, user_id: str, access_token: str) -> Non
 
 
 @respx.mock
-async def test_find_by_signature(base_url: str, user_id: str, access_token: str) -> None:
-    respx.get(f"{base_url}/{user_id}/threads").respond(
-        200,
-        json={
-            "data": [
-                {"id": "post_sig_1", "text": "Game summary [SIG:GAME_12345]"},
-                {"id": "post_sig_2", "text": "Other game"},
-            ]
-        },
-    )
+async def test_iter_posts_pagination(base_url: str, user_id: str, access_token: str) -> None:
+    respx.get(f"{base_url}/{user_id}/threads").side_effect = [
+        httpx.Response(
+            200,
+            json={
+                "data": [{"id": "post_page1_1", "text": "First"}],
+                "paging": {"cursors": {"after": "cur_p1"}, "next": f"{base_url}/{user_id}/threads?after=cur_p1"},
+            },
+        ),
+        httpx.Response(
+            200,
+            json={
+                "data": [{"id": "post_page2_1", "text": "Second"}],
+                "paging": {"cursors": {"after": "cur_p2"}},
+            },
+        ),
+        httpx.Response(200, json={"data": []}),
+    ]
 
     async with ThreadsClient(user_id=user_id, access_token=access_token) as client:
-        found_id = await client.posts.find_by_signature("SIG:GAME_12345")
-        assert found_id == "post_sig_1"
+        posts = [p async for p in client.posts.iter_posts(limit=1)]
+        assert len(posts) == 2
+        assert posts[0].id == "post_page1_1"
+        assert posts[1].id == "post_page2_1"
 
-        not_found = await client.posts.find_by_signature("NOT_FOUND")
-        assert not_found is None
+
+@respx.mock
+async def test_polling_expired_raises_media_processing_error(
+    base_url: str, user_id: str, access_token: str, mocker: pytest_mock.MockerFixture
+) -> None:
+    mocker.patch("asyncio.sleep")
+    respx.post(f"{base_url}/{user_id}/threads").respond(200, json={"id": "cnt_expired"})
+    respx.get(f"{base_url}/cnt_expired").respond(200, json={"status": "EXPIRED"})
+
+    async with ThreadsClient(user_id=user_id, access_token=access_token) as client:
+        with pytest.raises(ThreadsMediaProcessingError, match=r"expired before processing completed"):
+            await client.posts.create(text="Expired test", image_url="https://example.com/img.png")
+
+
+async def test_create_post_both_image_and_video_raises_validation_error(user_id: str, access_token: str) -> None:
+    async with ThreadsClient(user_id=user_id, access_token=access_token) as client:
+        with pytest.raises(ThreadsValidationError, match=r"both image_url and video_url"):
+            await client.posts.create(
+                text="Conflict",
+                image_url="https://example.com/a.jpg",
+                video_url="https://example.com/b.mp4",
+            )
 
 
 @respx.mock
