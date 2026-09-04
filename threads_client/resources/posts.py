@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import AsyncIterator, Sequence
+from typing import cast
 
 from threads_client.config import (
     DEFAULT_CAROUSEL_CONCURRENCY_LIMIT,
@@ -11,6 +12,7 @@ from threads_client.config import (
     DEFAULT_POLL_MAX_ATTEMPTS,
     DEFAULT_PUBLISH_MAX_RETRIES,
     MAX_TOPIC_TAG_LENGTH,
+    VALID_CONTAINER_STATUS_STATES,
 )
 from threads_client.exceptions import (
     ThreadsAPIError,
@@ -21,6 +23,7 @@ from threads_client.exceptions import (
 from threads_client.models import (
     CarouselMediaItem,
     ContainerStatus,
+    ContainerStatusState,
     PostCreateResult,
     ThreadsPost,
     ThreadsPostPage,
@@ -209,6 +212,32 @@ class PostsResource(BaseResource):
             raise ThreadsAPIError(f"No carousel container ID returned: {resp.text}")
         return str(container_id)
 
+    async def get_container_status(self, container_id: str) -> ContainerStatus:
+        token = self._require_access_token()
+        url = self._resolve_url(container_id)
+        params: QueryParamsMapping = {"fields": "status,error_message", "access_token": token}
+        resp = await self._transport.request(
+            "GET",
+            url,
+            params=params,
+            max_retries=1,
+            extra_secrets=self._get_extra_secrets(),
+        )
+        data = resp.json()
+        status_val = data.get("status")
+        if not status_val or not isinstance(status_val, str):
+            raise ThreadsAPIError(f"No status returned for container {container_id}: {resp.text}")
+
+        if status_val not in VALID_CONTAINER_STATUS_STATES:
+            raise ThreadsAPIError(f"Unexpected container status {status_val!r} for container {container_id}")
+
+        err_msg = str(data["error_message"]) if data.get("error_message") else None
+        return ContainerStatus(
+            id=str(data.get("id") or container_id),
+            status=cast(ContainerStatusState, status_val),
+            error_message=err_msg,
+        )
+
     async def poll_container_status(
         self,
         container_id: str,
@@ -216,27 +245,16 @@ class PostsResource(BaseResource):
         max_attempts: int = DEFAULT_POLL_MAX_ATTEMPTS,
         delay: int = DEFAULT_POLL_DELAY_SECONDS,
     ) -> ContainerStatus:
-        token = self._require_access_token()
-        url = self._resolve_url(container_id)
-        params: QueryParamsMapping = {"fields": "status,error_message", "access_token": token}
-
         for attempt in range(max_attempts):
-            resp = await self._transport.request(
-                "GET",
-                url,
-                params=params,
-                max_retries=1,
-                extra_secrets=self._get_extra_secrets(),
-            )
-            data = resp.json()
-            status = data.get("status")
+            container_status = await self.get_container_status(container_id)
+            status = container_status.status
 
             if status == "FINISHED":
-                return ContainerStatus(id=container_id, status="FINISHED")
+                return container_status
             if status == "EXPIRED":
                 raise ThreadsMediaProcessingError(f"Container {container_id} expired before processing completed.")
             if status == "ERROR":
-                err_msg = str(data.get("error_message") or "Container processing failed")
+                err_msg = container_status.error_message or "Container processing failed"
                 raise ThreadsMediaProcessingError(f"Container processing failed: {err_msg}")
 
             logger.info("Container %s status: %s (%s/%s)", container_id, status, attempt + 1, max_attempts)

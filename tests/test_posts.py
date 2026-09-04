@@ -354,3 +354,82 @@ async def test_polling_retry_sleeps_until_finished(
         assert status.status == "FINISHED"
 
     assert mock_sleep.call_count == 1
+
+
+@respx.mock
+async def test_get_container_status_finished(base_url: str, user_id: str, access_token: str) -> None:
+    respx.get(f"{base_url}/cnt_finished").respond(200, json={"id": "cnt_finished", "status": "FINISHED"})
+
+    async with ThreadsClient(user_id=user_id, access_token=access_token) as client:
+        status = await client.posts.get_container_status("cnt_finished")
+        assert status.id == "cnt_finished"
+        assert status.status == "FINISHED"
+        assert status.error_message is None
+
+
+@respx.mock
+async def test_get_container_status_in_progress(base_url: str, user_id: str, access_token: str) -> None:
+    respx.get(f"{base_url}/cnt_progress").respond(200, json={"id": "cnt_progress", "status": "IN_PROGRESS"})
+
+    async with ThreadsClient(user_id=user_id, access_token=access_token) as client:
+        status = await client.posts.get_container_status("cnt_progress")
+        assert status.status == "IN_PROGRESS"
+
+
+@respx.mock
+async def test_get_container_status_published(base_url: str, user_id: str, access_token: str) -> None:
+    respx.get(f"{base_url}/cnt_pub").respond(200, json={"id": "cnt_pub", "status": "PUBLISHED"})
+
+    async with ThreadsClient(user_id=user_id, access_token=access_token) as client:
+        status = await client.posts.get_container_status("cnt_pub")
+        assert status.status == "PUBLISHED"
+
+
+@respx.mock
+async def test_get_container_status_error_with_message(base_url: str, user_id: str, access_token: str) -> None:
+    respx.get(f"{base_url}/cnt_err").respond(
+        200, json={"id": "cnt_err", "status": "ERROR", "error_message": "Media upload failed"}
+    )
+
+    async with ThreadsClient(user_id=user_id, access_token=access_token) as client:
+        status = await client.posts.get_container_status("cnt_err")
+        assert status.id == "cnt_err"
+        assert status.status == "ERROR"
+        assert status.error_message == "Media upload failed"
+
+
+@respx.mock
+async def test_get_container_status_expired(base_url: str, user_id: str, access_token: str) -> None:
+    respx.get(f"{base_url}/cnt_exp").respond(200, json={"id": "cnt_exp", "status": "EXPIRED"})
+
+    async with ThreadsClient(user_id=user_id, access_token=access_token) as client:
+        status = await client.posts.get_container_status("cnt_exp")
+        assert status.status == "EXPIRED"
+
+
+@respx.mock
+async def test_get_container_status_fallback_id(base_url: str, user_id: str, access_token: str) -> None:
+    respx.get(f"{base_url}/cnt_no_id").respond(200, json={"status": "FINISHED"})
+
+    async with ThreadsClient(user_id=user_id, access_token=access_token) as client:
+        status = await client.posts.get_container_status("cnt_no_id")
+        assert status.id == "cnt_no_id"
+        assert status.status == "FINISHED"
+
+
+@respx.mock
+async def test_get_container_status_missing_status_raises(base_url: str, user_id: str, access_token: str) -> None:
+    respx.get(f"{base_url}/cnt_empty").respond(200, json={})
+
+    async with ThreadsClient(user_id=user_id, access_token=access_token) as client:
+        with pytest.raises(ThreadsAPIError, match="No status returned"):
+            await client.posts.get_container_status("cnt_empty")
+
+
+@respx.mock
+async def test_get_container_status_unexpected_status_raises(base_url: str, user_id: str, access_token: str) -> None:
+    respx.get(f"{base_url}/cnt_invalid").respond(200, json={"status": "UNKNOWN_VAL"})
+
+    async with ThreadsClient(user_id=user_id, access_token=access_token) as client:
+        with pytest.raises(ThreadsAPIError, match="Unexpected container status"):
+            await client.posts.get_container_status("cnt_invalid")
