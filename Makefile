@@ -1,11 +1,12 @@
-.PHONY: help install lint format mypy test build clean
+.PHONY: help install lint format mypy vulture test build clean
 
 help:
 	@echo "threads-client developer commands:"
 	@echo "  make install     Install all dependencies via uv"
-	@echo "  make lint        Run ruff linter and format check"
+	@echo "  make lint        Run ruff linter, formatter, mypy, and vulture"
 	@echo "  make format      Auto-format code with ruff"
 	@echo "  make mypy        Run strict static type analysis"
+	@echo "  make vulture     Run dead code detection"
 	@echo "  make test        Run full pytest test suite"
 	@echo "  make build       Build source distribution and wheel via uv"
 	@echo "  make clean       Remove build artifacts and caches"
@@ -17,6 +18,10 @@ lint:
 	uv run ruff check threads_client tests
 	uv run ruff format --check threads_client tests
 	uv run mypy threads_client tests
+	uv run vulture threads_client tests
+
+vulture:
+	uv run vulture threads_client tests
 
 format:
 	uv run ruff check --fix threads_client tests

@@ -44,6 +44,9 @@ jobs:
       - name: Run MyPy Strict Type Check
         run: uv run mypy threads_client tests
 
+      - name: Run Vulture Dead Code Check
+        run: uv run vulture threads_client tests
+
       - name: Dry-run Package Build
         run: uv build
 

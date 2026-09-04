@@ -42,6 +42,7 @@ dev = [
     "respx>=0.21.0",
     "ruff>=0.4.0",
     "mypy>=1.10.0",
+    "vulture>=2.11",
 ]
 
 [tool.ruff]
@@ -63,3 +64,8 @@ no_implicit_optional = true
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+
+[tool.vulture]
+min_confidence = 80
+paths = ["threads_client", "tests"]
+exclude = [".venv/"]
