@@ -84,3 +84,9 @@ async def test_client_token_dynamic_mutation_ssot(base_url: str) -> None:
 
         result = await client.posts.create(text="Dynamic token test")
         assert result.post_id == "post_dynamic_100"
+
+
+def test_package_version() -> None:
+    import threads_client
+
+    assert threads_client.__version__ == "0.2.0"
