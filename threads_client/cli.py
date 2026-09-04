@@ -2,12 +2,15 @@ from __future__ import annotations
 
 import asyncio
 import os
+import tempfile
 from pathlib import Path
 from typing import Annotated
 
 import typer
 
 from threads_client.client import ThreadsClient
+from threads_client.config import ENV_FILE_PERMISSIONS
+from threads_client.exceptions import ThreadsAPIError
 
 app = typer.Typer(help="Meta Threads API Client CLI")
 token_app = typer.Typer(help="Token exchange and renewal commands")
@@ -30,7 +33,14 @@ def _update_env_var(env_path: Path, key: str, value: str) -> None:
     if not replaced:
         lines.append(f"{key}={value}\n")
 
-    env_path.write_text("".join(lines), encoding="utf-8")
+    content = "".join(lines)
+    parent_dir = env_path.parent
+    with tempfile.NamedTemporaryFile("w", dir=parent_dir, delete=False, encoding="utf-8") as tf:
+        tf.write(content)
+        temp_name = tf.name
+
+    os.chmod(temp_name, ENV_FILE_PERMISSIONS)
+    os.replace(temp_name, env_path)
 
 
 def _read_env_var(env_path: Path, key: str) -> str | None:
@@ -55,7 +65,7 @@ def refresh_token_cmd(
         raise typer.Exit(code=1)
 
     async def _run() -> None:
-        async with ThreadsClient(user_id="me", access_token=current_token) as client:
+        async with ThreadsClient(access_token=current_token) as client:
             info = await client.tokens.refresh(current_token)
             _update_env_var(env_file, "THREADS_ACCESS_TOKEN", info.access_token)
             typer.secho(
@@ -63,7 +73,11 @@ def refresh_token_cmd(
                 fg=typer.colors.GREEN,
             )
 
-    asyncio.run(_run())
+    try:
+        asyncio.run(_run())
+    except ThreadsAPIError as err:
+        typer.secho(f"Error: {err.message}", fg=typer.colors.RED)
+        raise typer.Exit(code=1) from None
 
 
 @token_app.command("exchange")
@@ -75,7 +89,7 @@ def exchange_token_cmd(
     """Exchange short-lived OAuth token for 60-day long-lived token."""
 
     async def _run() -> None:
-        async with ThreadsClient(user_id="me", access_token="temp") as client:
+        async with ThreadsClient() as client:
             info = await client.tokens.exchange(short_token=short_token, app_secret=app_secret)
             _update_env_var(env_file, "THREADS_ACCESS_TOKEN", info.access_token)
             typer.secho(
@@ -83,7 +97,11 @@ def exchange_token_cmd(
                 fg=typer.colors.GREEN,
             )
 
-    asyncio.run(_run())
+    try:
+        asyncio.run(_run())
+    except ThreadsAPIError as err:
+        typer.secho(f"Error: {err.message}", fg=typer.colors.RED)
+        raise typer.Exit(code=1) from None
 
 
 if __name__ == "__main__":

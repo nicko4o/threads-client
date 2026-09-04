@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import httpx
+import pytest
 import pytest_mock
 import respx
 
@@ -43,3 +44,43 @@ async def test_client_convenience_carousel_method(
         items = [CarouselMediaItem(media_type="IMAGE", url="https://example.com/single.jpg")]
         post_id = await client.post_carousel("Carousel convenience", items=items)
         assert post_id == "post_conv_carousel_200"
+
+
+@respx.mock
+async def test_client_without_token_raises_authentication_error() -> None:
+    from threads_client.exceptions import ThreadsAuthenticationError
+
+    async with ThreadsClient() as client:
+        with pytest.raises(ThreadsAuthenticationError, match=r"Access token is required"):
+            await client.posts.create(text="No token test")
+
+
+@respx.mock
+async def test_client_without_token_allows_tokens_exchange(base_url: str) -> None:
+    respx.get(f"{base_url}/access_token").respond(
+        200,
+        json={"access_token": "NEW_TOKEN", "token_type": "bearer", "expires_in": 5184000},
+    )
+    async with ThreadsClient() as client:
+        info = await client.tokens.exchange(short_token="SHORT", app_secret="SECRET")
+        assert info.access_token == "NEW_TOKEN"
+
+
+@respx.mock
+async def test_client_token_dynamic_mutation_ssot(base_url: str) -> None:
+    respx.post(f"{base_url}/me/threads").respond(200, json={"id": "cnt_dynamic_1"})
+    respx.get(f"{base_url}/cnt_dynamic_1").respond(200, json={"status": "FINISHED"})
+    respx.post(f"{base_url}/me/threads_publish").respond(200, json={"id": "post_dynamic_100"})
+
+    async with ThreadsClient() as client:
+        assert client.access_token is None
+        # Dynamically set access_token on client
+        client.access_token = "DYNAMIC_TOKEN_123"
+        assert client.posts._require_access_token() == "DYNAMIC_TOKEN_123"
+
+        # Dynamically change user_id
+        client.user_id = "me"
+        assert client.posts._user_id == "me"
+
+        result = await client.posts.create(text="Dynamic token test")
+        assert result.post_id == "post_dynamic_100"

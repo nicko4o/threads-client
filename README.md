@@ -84,12 +84,16 @@ async with ThreadsClient(user_id="...", access_token="...") as client:
 
 ```python
 async with ThreadsClient(user_id="YOUR_USER_ID", access_token="YOUR_ACCESS_TOKEN") as client:
-    # List recent posts
-    page = await client.posts.list(limit=10)
-    for post in page.data:
+    # 1. Automatic cursor pagination across all posts
+    async for post in client.posts.iter_posts(limit=25):
         print(f"[{post.id}] {post.text} ({post.timestamp})")
 
-    # Delete a post
+    # 2. Fetch a single page
+    page = await client.posts.list(limit=10)
+    for post in page.data:
+        print(f"[{post.id}] {post.text}")
+
+    # 3. Delete a post
     success = await client.posts.delete(post_id="POST_ID_TO_DELETE")
     print(f"Deleted: {success}")
 ```

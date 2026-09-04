@@ -57,3 +57,32 @@ def test_cli_token_exchange(tmp_path: Path, base_url: str) -> None:
 
     updated_content = env_file.read_text(encoding="utf-8")
     assert "THREADS_ACCESS_TOKEN=NEW_EXCHANGED_TOKEN" in updated_content
+    # File permissions should be restricted (0o600)
+    assert (env_file.stat().st_mode & 0o777) == 0o600
+
+
+@respx.mock
+def test_cli_handles_threads_api_error_gracefully(tmp_path: Path, base_url: str) -> None:
+    respx.get(f"{base_url}/access_token").respond(
+        400,
+        json={"error": {"message": "Invalid OAuth secret", "code": 190}},
+    )
+    env_file = tmp_path / ".env"
+    env_file.write_text("", encoding="utf-8")
+
+    result = runner.invoke(
+        app,
+        [
+            "token",
+            "exchange",
+            "--short-token",
+            "BAD_TOKEN",
+            "--app-secret",
+            "BAD_SECRET",
+            "--env-file",
+            str(env_file),
+        ],
+    )
+    assert result.exit_code == 1
+    assert "Error: Invalid OAuth secret" in result.stdout
+    assert "Traceback" not in result.stdout

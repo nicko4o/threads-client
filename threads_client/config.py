@@ -10,6 +10,7 @@ DEFAULT_POLL_MAX_ATTEMPTS: Final[int] = 30
 DEFAULT_POLL_DELAY_SECONDS: Final[int] = 5
 DEFAULT_PUBLISH_MAX_RETRIES: Final[int] = 5
 DEFAULT_REQUEST_MAX_RETRIES: Final[int] = 3
+DEFAULT_PAGE_SIZE: Final[int] = 25
 LOG_RESPONSE_BODY_LIMIT: Final[int] = 500
 
 ERROR_SUBCODE_MEDIA_NOT_READY: Final[int] = 4279009
@@ -17,3 +18,8 @@ MEDIA_NOT_READY_BACKOFF_FACTOR_SECONDS: Final[int] = 3
 MAX_TOPIC_TAG_LENGTH: Final[int] = 50
 
 TRANSIENT_ERROR_CODES: Final[tuple[int, ...]] = (1, 2, 4, 17, 341)
+
+SENSITIVE_PARAM_KEYS: Final[frozenset[str]] = frozenset(
+    {"access_token", "client_secret", "refresh_token", "short_token", "token"}
+)
+ENV_FILE_PERMISSIONS: Final[int] = 0o600
