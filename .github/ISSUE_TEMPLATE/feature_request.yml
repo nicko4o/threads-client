@@ -1,0 +1,27 @@
+name: "🚀 Feature Request"
+description: Suggest an enhancement or new feature for threads-client
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Have an idea or need support for an additional Threads API endpoint? Let us know!
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem Statement
+      placeholder: What problem does this solve or what use case does it enable?
+    validations:
+      required: true
+  - type: textarea
+    id: proposed-solution
+    attributes:
+      label: Proposed Solution / API Design
+      placeholder: Describe the desired interface or behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      placeholder: Any other workarounds or libraries considered?

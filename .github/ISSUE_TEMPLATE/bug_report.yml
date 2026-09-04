@@ -1,0 +1,61 @@
+name: "🐛 Bug Report"
+description: Report an issue or unexpected behavior in threads-client
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting an issue! Please do NOT post real Meta access tokens or secrets in this form.
+  - type: textarea
+    id: description
+    attributes:
+      label: Describe the Bug
+      placeholder: A clear and concise description of what the bug is.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      placeholder: |
+        Minimal, reproducible Python code example:
+        ```python
+        import asyncio
+        from threads_client import ThreadsClient
+
+        async def main():
+            async with ThreadsClient(user_id="...", access_token="...") as client:
+                await client.posts.create(...)
+
+        asyncio.run(main())
+        ```
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      placeholder: What did you expect to happen?
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior & Error Traceback
+      placeholder: Error message, status code, or log output (ensure tokens are redacted!).
+    validations:
+      required: true
+  - type: input
+    id: python-version
+    attributes:
+      label: Python Version
+      placeholder: e.g., 3.11.9
+    validations:
+      required: true
+  - type: input
+    id: package-version
+    attributes:
+      label: threads-client Version
+      placeholder: e.g., 0.1.0
+    validations:
+      required: true

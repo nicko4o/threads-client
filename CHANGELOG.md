@@ -21,6 +21,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Strongly typed Pydantic v2 models (`CarouselMediaItem`, `PostCreateResult`, `ThreadsPost`, `TokenInfo`).
 - Structured exception hierarchy (`ThreadsError`, `ThreadsAPIError`, `ThreadsAuthenticationError`, `ThreadsRateLimitError`, `ThreadsMediaProcessingError`, `ThreadsTimeoutError`, `ThreadsValidationError`).
 - Automatic access token redaction in HTTP error logs.
+- Developer workflow tooling: `Makefile` targets (`install`, `lint`, `format`, `mypy`, `test`, `build`, `clean`).
+- GitHub Actions workflows for multi-python CI matrix testing (`.github/workflows/ci.yml`) and PyPA Trusted Publishing via OIDC (`.github/workflows/publish.yml`).
+- Repository governance templates: `pull_request_template.md`, issue templates (`bug_report.yml`, `feature_request.yml`), `CONTRIBUTING.md`, and `SECURITY.md`.
 ### Changed
 - Flattened package layout by removing `src/` hierarchy and placing `threads_client/` directly at repository root.
 - Consolidated models, resources, and CLI modules into flat module structure (`models.py`, `client.py`, `cli.py`).
