@@ -11,8 +11,8 @@ runner = CliRunner()
 
 
 @respx.mock
-def test_cli_token_refresh(tmp_path: Path, base_url: str) -> None:
-    respx.get(f"{base_url}/refresh_access_token").respond(
+def test_cli_token_refresh(tmp_path: Path, auth_base_url: str) -> None:
+    respx.get(f"{auth_base_url}/refresh_access_token").respond(
         200,
         json={"access_token": "NEW_REFRESHED_LONG_TOKEN", "token_type": "bearer", "expires_in": 5184000},
     )
@@ -30,8 +30,8 @@ def test_cli_token_refresh(tmp_path: Path, base_url: str) -> None:
 
 
 @respx.mock
-def test_cli_token_exchange(tmp_path: Path, base_url: str) -> None:
-    respx.get(f"{base_url}/access_token").respond(
+def test_cli_token_exchange(tmp_path: Path, auth_base_url: str) -> None:
+    respx.get(f"{auth_base_url}/access_token").respond(
         200,
         json={"access_token": "NEW_EXCHANGED_TOKEN", "token_type": "bearer", "expires_in": 5184000},
     )
@@ -62,8 +62,8 @@ def test_cli_token_exchange(tmp_path: Path, base_url: str) -> None:
 
 
 @respx.mock
-def test_cli_handles_threads_api_error_gracefully(tmp_path: Path, base_url: str) -> None:
-    respx.get(f"{base_url}/access_token").respond(
+def test_cli_handles_threads_api_error_gracefully(tmp_path: Path, auth_base_url: str) -> None:
+    respx.get(f"{auth_base_url}/access_token").respond(
         400,
         json={"error": {"message": "Invalid OAuth secret", "code": 190}},
     )

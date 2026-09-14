@@ -16,3 +16,8 @@ def access_token() -> str:
 @pytest.fixture
 def base_url() -> str:
     return "https://graph.threads.net/v1.0"
+
+
+@pytest.fixture
+def auth_base_url() -> str:
+    return "https://graph.threads.net"

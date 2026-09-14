@@ -8,8 +8,8 @@ from threads_client.exceptions import ThreadsAPIError
 
 
 @respx.mock
-async def test_token_exchange_success(base_url: str) -> None:
-    respx.get(f"{base_url}/access_token").respond(
+async def test_token_exchange_success(auth_base_url: str) -> None:
+    respx.get(f"{auth_base_url}/access_token").respond(
         200,
         json={"access_token": "TH_LONG_LIVED_TOKEN_123", "token_type": "bearer", "expires_in": 5184000},
     )
@@ -22,8 +22,8 @@ async def test_token_exchange_success(base_url: str) -> None:
 
 
 @respx.mock
-async def test_token_exchange_failure(base_url: str) -> None:
-    respx.get(f"{base_url}/access_token").respond(
+async def test_token_exchange_failure(auth_base_url: str) -> None:
+    respx.get(f"{auth_base_url}/access_token").respond(
         400,
         json={"error": {"message": "Invalid OAuth access token", "code": 190}},
     )
@@ -35,8 +35,8 @@ async def test_token_exchange_failure(base_url: str) -> None:
 
 
 @respx.mock
-async def test_token_refresh_success(base_url: str) -> None:
-    respx.get(f"{base_url}/refresh_access_token").respond(
+async def test_token_refresh_success(auth_base_url: str) -> None:
+    respx.get(f"{auth_base_url}/refresh_access_token").respond(
         200,
         json={"access_token": "TH_REFRESHED_TOKEN_999", "token_type": "bearer", "expires_in": 5184000},
     )
@@ -48,10 +48,10 @@ async def test_token_refresh_success(base_url: str) -> None:
 
 
 @respx.mock
-async def test_token_exchange_logging_masks_secret(base_url: str, caplog: pytest.LogCaptureFixture) -> None:
+async def test_token_exchange_logging_masks_secret(auth_base_url: str, caplog: pytest.LogCaptureFixture) -> None:
     import logging
 
-    respx.get(f"{base_url}/access_token").respond(
+    respx.get(f"{auth_base_url}/access_token").respond(
         400,
         json={"error": {"message": "Invalid OAuth secret", "code": 190}},
     )
@@ -62,3 +62,9 @@ async def test_token_exchange_logging_masks_secret(base_url: str, caplog: pytest
 
     assert "SUPER_SHORT_SECRET_TOKEN" not in caplog.text
     assert "SUPER_APP_SECRET" not in caplog.text
+
+
+def test_token_endpoint_resolves_to_root_host(base_url: str) -> None:
+    client = ThreadsClient(base_url=base_url)
+    assert client.tokens._resolve_url("/access_token") == "https://graph.threads.net/access_token"
+    assert client.tokens._resolve_url("/refresh_access_token") == "https://graph.threads.net/refresh_access_token"

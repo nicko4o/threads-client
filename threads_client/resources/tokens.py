@@ -9,7 +9,7 @@ class TokensResource(BaseResource):
     """Resource managing OAuth tokens exchange and renewal."""
 
     async def exchange(self, short_token: str, app_secret: str) -> TokenInfo:
-        url = self._resolve_url("access_token")
+        url = self._resolve_url("/access_token")
         params: QueryParamsMapping = {
             "grant_type": "th_exchange_token",
             "client_secret": app_secret,
@@ -24,7 +24,7 @@ class TokensResource(BaseResource):
         return TokenInfo.model_validate(resp.json())
 
     async def refresh(self, long_token: str) -> TokenInfo:
-        url = self._resolve_url("refresh_access_token")
+        url = self._resolve_url("/refresh_access_token")
         params: QueryParamsMapping = {
             "grant_type": "th_refresh_token",
             "access_token": long_token,

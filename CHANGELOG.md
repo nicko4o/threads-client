@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- Automatic backoff retry protection for Carousel container creation against Meta eventual consistency error `4279004` (`Carousel child not ready`).
+- Automatic retry and taxonomy mapping for Meta API rate limit codes `32` (`Page request limit reached`) and `613` (`Calls to api exceeded limit`) via `ThreadsRateLimitError`.
+- Transient error tolerance in `PostsResource.poll_container_status` to gracefully absorb temporary network hiccups and 502/504 gateway spikes without prematurely failing the publishing pipeline.
+- RFC 3986 root-path resolution in `BaseResource._resolve_url` supporting root-level endpoints such as OAuth token exchange and renewal.
+- Infinite loop prevention in `iter_posts` detecting stagnant or repetitive pagination cursors.
+- Dedicated unit test coverage for `Transport` (HTTP verbs, network error retry, media delay linear backoff, query params forwarding on POST) and gateway error fallback.
+
+### Fixed
+- Fixed unversioned OAuth token endpoints (`/access_token` and `/refresh_access_token`) previously misdirected to `/v1.0/` versioned paths.
+- Removed dead code exception catch in `_extract_error_dict` and added defensive message truncation for oversized HTML gateway responses.
+- Fixed weak typing in `Transport` dispatch methods and eliminated scope creep where non-POST requests could carry invalid body payloads.
+
+### Changed
+- Unified retry orchestration within `Transport`, eliminating duplicated manual retry loops in `PostsResource.publish_container` and restoring default retry capabilities in `PostsResource.get_container_status`.
+
 ## [0.2.0] - 2026-09-04
 
 ### Added

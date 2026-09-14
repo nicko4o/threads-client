@@ -56,8 +56,8 @@ async def test_client_without_token_raises_authentication_error() -> None:
 
 
 @respx.mock
-async def test_client_without_token_allows_tokens_exchange(base_url: str) -> None:
-    respx.get(f"{base_url}/access_token").respond(
+async def test_client_without_token_allows_tokens_exchange(auth_base_url: str) -> None:
+    respx.get(f"{auth_base_url}/access_token").respond(
         200,
         json={"access_token": "NEW_TOKEN", "token_type": "bearer", "expires_in": 5184000},
     )
