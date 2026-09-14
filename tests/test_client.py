@@ -89,4 +89,4 @@ async def test_client_token_dynamic_mutation_ssot(base_url: str) -> None:
 def test_package_version() -> None:
     import threads_client
 
-    assert threads_client.__version__ == "0.2.0"
+    assert threads_client.__version__ == "0.2.1"
