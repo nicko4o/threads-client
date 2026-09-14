@@ -14,7 +14,7 @@ from threads_client.exceptions import (
     ThreadsTimeoutError,
     ThreadsValidationError,
 )
-from threads_client.models import CarouselMediaItem, ThreadsPaging
+from threads_client.models import CarouselMediaItem, ThreadsPaging, ThreadsPost
 
 
 def _req_body(call_index: int = 0) -> str:
@@ -433,3 +433,83 @@ async def test_get_container_status_unexpected_status_raises(base_url: str, user
     async with ThreadsClient(user_id=user_id, access_token=access_token) as client:
         with pytest.raises(ThreadsAPIError, match="Unexpected container status"):
             await client.posts.get_container_status("cnt_invalid")
+
+
+@respx.mock
+async def test_create_carousel_retry_on_child_not_ready_4279004(
+    base_url: str, user_id: str, access_token: str, mocker: pytest_mock.MockerFixture
+) -> None:
+    mock_sleep = mocker.patch("asyncio.sleep")
+    respx.post(f"{base_url}/{user_id}/threads").side_effect = [
+        httpx.Response(200, json={"id": "cnt_child_1"}),
+        httpx.Response(
+            400,
+            json={
+                "error": {
+                    "message": "Carousel child container not ready",
+                    "code": 100,
+                    "error_subcode": 4279004,
+                    "is_transient": False,
+                }
+            },
+        ),
+        httpx.Response(200, json={"id": "cnt_carousel_parent"}),
+    ]
+    respx.get(f"{base_url}/cnt_child_1").respond(200, json={"status": "FINISHED"})
+    respx.get(f"{base_url}/cnt_carousel_parent").respond(200, json={"status": "FINISHED"})
+    respx.post(f"{base_url}/{user_id}/threads_publish").respond(200, json={"id": "post_carousel_4279004_ok"})
+
+    items = [CarouselMediaItem(media_type="IMAGE", url="https://example.com/item1.png")]
+    async with ThreadsClient(user_id=user_id, access_token=access_token) as client:
+        result = await client.posts.create_carousel(text="Carousel 4279004 test", items=items)
+        assert result.post_id == "post_carousel_4279004_ok"
+        assert result.container_id == "cnt_carousel_parent"
+
+    assert mock_sleep.call_count >= 1
+
+
+@respx.mock
+async def test_poll_container_status_resilience_on_transient_error(
+    base_url: str, user_id: str, access_token: str, mocker: pytest_mock.MockerFixture
+) -> None:
+    mock_sleep = mocker.patch("asyncio.sleep")
+    route_status = respx.get(f"{base_url}/cnt_flaky_poll")
+    route_status.side_effect = [
+        httpx.Response(502, text="<html>502 Bad Gateway</html>"),
+        httpx.Response(200, json={"id": "cnt_flaky_poll", "status": "FINISHED"}),
+    ]
+
+    async with ThreadsClient(user_id=user_id, access_token=access_token) as client:
+        status = await client.posts.poll_container_status("cnt_flaky_poll")
+        assert status.status == "FINISHED"
+
+    assert mock_sleep.call_count >= 1
+
+
+@respx.mock
+async def test_iter_posts_terminates_on_stagnant_cursor(base_url: str, user_id: str, access_token: str) -> None:
+    route_list = respx.get(f"{base_url}/{user_id}/threads")
+    route_list.side_effect = [
+        httpx.Response(
+            200,
+            json={
+                "data": [{"id": "post_1", "text": "First page"}],
+                "paging": {"cursors": {"after": "SAME_CURSOR_TOKEN"}},
+            },
+        ),
+        httpx.Response(
+            200,
+            json={
+                "data": [{"id": "post_1", "text": "Same data"}],
+                "paging": {"cursors": {"after": "SAME_CURSOR_TOKEN"}},
+            },
+        ),
+    ]
+
+    async with ThreadsClient(user_id=user_id, access_token=access_token) as client:
+        posts: list[ThreadsPost] = []
+        async for p in client.posts.iter_posts():
+            posts.append(p)
+
+    # Must terminate after discovering the stagnant cursor on page 2, preventing infinite loop
+    assert len(posts) == 2

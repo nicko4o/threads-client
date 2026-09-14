@@ -11,6 +11,7 @@ from threads_client.config import (
     DEFAULT_POLL_DELAY_SECONDS,
     DEFAULT_POLL_MAX_ATTEMPTS,
     DEFAULT_PUBLISH_MAX_RETRIES,
+    DEFAULT_REQUEST_MAX_RETRIES,
     MAX_TOPIC_TAG_LENGTH,
     VALID_CONTAINER_STATUS_STATES,
 )
@@ -32,8 +33,6 @@ from threads_client.resources.base import BaseResource
 from threads_client.transport import (
     ParamPrimitive,
     QueryParamsMapping,
-    calc_exponential_backoff,
-    calc_media_not_ready_backoff,
 )
 
 logger = logging.getLogger(__name__)
@@ -184,6 +183,7 @@ class PostsResource(BaseResource):
         *,
         topic_tag: str | None = None,
         reply_to_id: str | None = None,
+        max_retries: int = DEFAULT_REQUEST_MAX_RETRIES,
     ) -> str:
         if not children:
             raise ThreadsValidationError("Carousel children cannot be empty")
@@ -205,6 +205,7 @@ class PostsResource(BaseResource):
             "POST",
             url,
             data=data,
+            max_retries=max_retries,
             extra_secrets=self._get_extra_secrets(),
         )
         container_id = resp.json().get("id")
@@ -220,7 +221,6 @@ class PostsResource(BaseResource):
             "GET",
             url,
             params=params,
-            max_retries=1,
             extra_secrets=self._get_extra_secrets(),
         )
         data = resp.json()
@@ -246,7 +246,21 @@ class PostsResource(BaseResource):
         delay: int = DEFAULT_POLL_DELAY_SECONDS,
     ) -> ContainerStatus:
         for attempt in range(max_attempts):
-            container_status = await self.get_container_status(container_id)
+            try:
+                container_status = await self.get_container_status(container_id)
+            except ThreadsAPIError as error:
+                if not error.is_transient or attempt >= max_attempts - 1:
+                    raise
+                logger.warning(
+                    "Transient error polling container %s: %s (attempt %s/%s)",
+                    container_id,
+                    error,
+                    attempt + 1,
+                    max_attempts,
+                )
+                await asyncio.sleep(delay)
+                continue
+
             status = container_status.status
 
             if status == "FINISHED":
@@ -273,37 +287,17 @@ class PostsResource(BaseResource):
         url = self._resolve_url(f"{self._user_id}/threads_publish")
         data: dict[str, object] = {"creation_id": container_id, "access_token": token}
 
-        for attempt in range(max_retries):
-            try:
-                resp = await self._transport.request(
-                    "POST",
-                    url,
-                    data=data,
-                    max_retries=1,
-                    extra_secrets=self._get_extra_secrets(),
-                )
-                post_id = resp.json().get("id")
-                if not post_id:
-                    raise ThreadsAPIError(f"No publish ID returned: {resp.text}")
-                return str(post_id)
-            except ThreadsAPIError as error:
-                if (not error.is_media_not_ready and not error.is_transient) or attempt >= max_retries - 1:
-                    raise
-                wait_sec = (
-                    calc_media_not_ready_backoff(attempt)
-                    if error.is_media_not_ready
-                    else calc_exponential_backoff(attempt)
-                )
-                logger.warning(
-                    "Publish retry container=%s wait=%ss (%s/%s)",
-                    container_id,
-                    wait_sec,
-                    attempt + 1,
-                    max_retries,
-                )
-                await asyncio.sleep(wait_sec)
-
-        raise ThreadsAPIError(f"Failed to publish container {container_id} after retries")
+        resp = await self._transport.request(
+            "POST",
+            url,
+            data=data,
+            max_retries=max_retries,
+            extra_secrets=self._get_extra_secrets(),
+        )
+        post_id = resp.json().get("id")
+        if not post_id:
+            raise ThreadsAPIError(f"No publish ID returned: {resp.text}")
+        return str(post_id)
 
     async def delete(self, post_id: str) -> bool:
         token = self._require_access_token()
@@ -351,6 +345,7 @@ class PostsResource(BaseResource):
         limit: int = DEFAULT_PAGE_SIZE,
     ) -> AsyncIterator[ThreadsPost]:
         after: str | None = None
+        seen_cursors: set[str] = set()
         while True:
             page = await self.list(user_id=user_id, limit=limit, after=after)
             if not page.data:
@@ -359,4 +354,8 @@ class PostsResource(BaseResource):
                 yield post
             if not page.paging or not page.paging.cursors or not page.paging.cursors.after:
                 break
-            after = page.paging.cursors.after
+            next_after = page.paging.cursors.after
+            if next_after in seen_cursors:
+                break
+            seen_cursors.add(next_after)
+            after = next_after

@@ -1,8 +1,17 @@
 from __future__ import annotations
 
+import json
+
 import httpx
 
-from threads_client.config import ERROR_SUBCODE_MEDIA_NOT_READY, TRANSIENT_ERROR_CODES
+from threads_client.config import (
+    ERROR_SUBCODE_CAROUSEL_CHILD_NOT_READY,
+    ERROR_SUBCODE_MEDIA_NOT_READY,
+    MAX_ERROR_MESSAGE_LENGTH,
+    RATE_LIMIT_CODES,
+    TRANSIENT_ERROR_CODES,
+    TRANSIENT_MEDIA_SUBCODES,
+)
 
 
 class ThreadsError(Exception):
@@ -41,6 +50,14 @@ class ThreadsAPIError(ThreadsError):
     def is_media_not_ready(self) -> bool:
         return self.subcode == ERROR_SUBCODE_MEDIA_NOT_READY
 
+    @property
+    def is_carousel_child_not_ready(self) -> bool:
+        return self.subcode == ERROR_SUBCODE_CAROUSEL_CHILD_NOT_READY
+
+    @property
+    def is_media_processing_delay(self) -> bool:
+        return self.subcode is not None and self.subcode in TRANSIENT_MEDIA_SUBCODES
+
     @classmethod
     def from_http_error(cls, error: httpx.HTTPStatusError) -> ThreadsAPIError:
         resp = error.response
@@ -50,13 +67,16 @@ class ThreadsAPIError(ThreadsError):
         status_code = resp.status_code
         err_dict = _extract_error_dict(resp)
         message = str(err_dict.get("message") or resp.text or f"HTTP error {status_code}")
+        if len(message) > MAX_ERROR_MESSAGE_LENGTH:
+            message = f"{message[:MAX_ERROR_MESSAGE_LENGTH]}..."
+
         raw_code = err_dict.get("code")
         code = int(raw_code) if isinstance(raw_code, (int, str)) and str(raw_code).isdigit() else None
         raw_subcode = err_dict.get("error_subcode")
         subcode = int(raw_subcode) if isinstance(raw_subcode, (int, str)) and str(raw_subcode).isdigit() else None
         error_type = str(err_dict["type"]) if "type" in err_dict else None
 
-        is_transient = _is_transient_error(status_code, code, err_dict)
+        is_transient = _is_transient_error(status_code, code, subcode, err_dict)
         error_cls, forced_transient = _resolve_error_class(status_code, code, subcode)
         if forced_transient is not None:
             is_transient = forced_transient
@@ -88,11 +108,11 @@ def _resolve_error_class(
     code: int | None,
     subcode: int | None,
 ) -> tuple[type[ThreadsAPIError], bool | None]:
-    if subcode == ERROR_SUBCODE_MEDIA_NOT_READY:
-        return ThreadsMediaProcessingError, False
+    if subcode is not None and subcode in TRANSIENT_MEDIA_SUBCODES:
+        return ThreadsMediaProcessingError, True
     if status_code == 401 or code == 190:
         return ThreadsAuthenticationError, None
-    if status_code == 429 or code in (4, 17, 341):
+    if status_code == 429 or (code is not None and code in RATE_LIMIT_CODES):
         return ThreadsRateLimitError, True
     return ThreadsAPIError, None
 
@@ -104,13 +124,21 @@ def _extract_error_dict(resp: httpx.Response) -> dict[str, object]:
             return data["error"]
         if isinstance(data, dict):
             return data
-    except ValueError:
+    except (json.JSONDecodeError, ValueError):
+        # Fallback gracefully when response payload is non-JSON (e.g. HTML 502/504 gateway error)
         pass
     return {}
 
 
-def _is_transient_error(status_code: int, code: int | None, err_dict: dict[str, object]) -> bool:
-    if status_code >= 500 or status_code == 429:
+def _is_transient_error(
+    status_code: int,
+    code: int | None,
+    subcode: int | None,
+    err_dict: dict[str, object],
+) -> bool:
+    if status_code in (429, 500, 502, 503, 504) or status_code >= 500:
+        return True
+    if subcode is not None and subcode in TRANSIENT_MEDIA_SUBCODES:
         return True
     if err_dict.get("is_transient") is True:
         return True

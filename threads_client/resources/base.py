@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from urllib.parse import urljoin
 
 from threads_client.config import DEFAULT_THREADS_API_HOST
 from threads_client.exceptions import ThreadsAuthenticationError
@@ -38,7 +39,8 @@ class BaseResource:
     def _resolve_url(self, path_or_url: str) -> str:
         if path_or_url.startswith("http://") or path_or_url.startswith("https://"):
             return path_or_url
-        return f"{self._context.base_url.rstrip('/')}/{path_or_url.lstrip('/')}"
+        base = self._context.base_url if self._context.base_url.endswith("/") else f"{self._context.base_url}/"
+        return urljoin(base, path_or_url)
 
     def _require_access_token(self) -> str:
         if not self._context.access_token:

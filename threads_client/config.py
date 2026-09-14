@@ -14,14 +14,21 @@ DEFAULT_PAGE_SIZE: Final[int] = 25
 LOG_RESPONSE_BODY_LIMIT: Final[int] = 500
 
 ERROR_SUBCODE_MEDIA_NOT_READY: Final[int] = 4279009
+ERROR_SUBCODE_CAROUSEL_CHILD_NOT_READY: Final[int] = 4279004
 MEDIA_NOT_READY_BACKOFF_FACTOR_SECONDS: Final[int] = 3
 MAX_TOPIC_TAG_LENGTH: Final[int] = 50
+MAX_ERROR_MESSAGE_LENGTH: Final[int] = 500
 
 VALID_CONTAINER_STATUS_STATES: Final[frozenset[str]] = frozenset(
     {"EXPIRED", "ERROR", "FINISHED", "IN_PROGRESS", "PUBLISHED"}
 )
 
-TRANSIENT_ERROR_CODES: Final[tuple[int, ...]] = (1, 2, 4, 17, 341)
+RATE_LIMIT_CODES: Final[tuple[int, ...]] = (4, 17, 32, 341, 613)
+TRANSIENT_ERROR_CODES: Final[tuple[int, ...]] = (1, 2, 4, 17, 32, 341, 613)
+TRANSIENT_MEDIA_SUBCODES: Final[tuple[int, ...]] = (
+    ERROR_SUBCODE_MEDIA_NOT_READY,
+    ERROR_SUBCODE_CAROUSEL_CHILD_NOT_READY,
+)
 
 SENSITIVE_PARAM_KEYS: Final[frozenset[str]] = frozenset(
     {"access_token", "client_secret", "refresh_token", "short_token", "token"}
