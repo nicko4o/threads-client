@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-09-14
+
 ### Added
 - Automatic backoff retry protection for Carousel container creation against Meta eventual consistency error `4279004` (`Carousel child not ready`).
 - Automatic retry and taxonomy mapping for Meta API rate limit codes `32` (`Page request limit reached`) and `613` (`Calls to api exceeded limit`) via `ThreadsRateLimitError`.
